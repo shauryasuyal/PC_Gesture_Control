@@ -12,6 +12,8 @@ A real-time hand gesture recognition system powered by MediaPipe and scikit-lear
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-RandomForest-orange?logo=scikit-learn)](https://scikit-learn.org)
 [![License](https://img.shields.io/badge/License-MIT-purple)](LICENSE)
 
+SCREENSHOTS - https://drive.google.com/drive/folders/1Psc7fawUpmTPLp4yR0qQ7gwrdIuPqYZS?usp=sharing
+
 </div>
 
 ---
