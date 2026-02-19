@@ -1,0 +1,185 @@
+{
+  "gestures": [],
+  "action_presets": {
+    "play_pause": {
+      "label": "Play / Pause Media",
+      "type": "shortcut",
+      "value": "space"
+    },
+    "next_tab": {
+      "label": "Next Tab",
+      "type": "shortcut",
+      "value": "ctrl+tab"
+    },
+    "prev_tab": {
+      "label": "Previous Tab",
+      "type": "shortcut",
+      "value": "ctrl+shift+tab"
+    },
+    "volume_up": {
+      "label": "Volume Up",
+      "type": "shortcut",
+      "value": "volume_up"
+    },
+    "volume_down": {
+      "label": "Volume Down",
+      "type": "shortcut",
+      "value": "volume_down"
+    },
+    "alt_tab": {
+      "label": "Switch Window",
+      "type": "shortcut",
+      "value": "alt+tab"
+    },
+    "task_view": {
+      "label": "Task View",
+      "type": "shortcut",
+      "value": "windows+tab"
+    },
+    "close_window": {
+      "label": "Close Window",
+      "type": "shortcut",
+      "value": "alt+f4"
+    },
+    "screenshot": {
+      "label": "Screenshot",
+      "type": "shortcut",
+      "value": "windows+shift+s"
+    },
+    "browser_back": {
+      "label": "Browser Back",
+      "type": "shortcut",
+      "value": "alt+left"
+    },
+    "browser_forward": {
+      "label": "Browser Forward",
+      "type": "shortcut",
+      "value": "alt+right"
+    },
+    "minimize_all": {
+      "label": "Minimize All",
+      "type": "shortcut",
+      "value": "windows+m"
+    },
+    "lock_screen": {
+      "label": "Lock Screen",
+      "type": "shortcut",
+      "value": "windows+l"
+    },
+    "mute": {
+      "label": "Mute / Unmute",
+      "type": "shortcut",
+      "value": "volume_mute"
+    },
+    "media_next": {
+      "label": "Next Track",
+      "type": "shortcut",
+      "value": "next_track"
+    },
+    "media_prev": {
+      "label": "Previous Track",
+      "type": "shortcut",
+      "value": "previous_track"
+    },
+    "undo": {
+      "label": "Undo",
+      "type": "shortcut",
+      "value": "ctrl+z"
+    },
+    "redo": {
+      "label": "Redo",
+      "type": "shortcut",
+      "value": "ctrl+y"
+    },
+    "copy": {
+      "label": "Copy",
+      "type": "shortcut",
+      "value": "ctrl+c"
+    },
+    "paste": {
+      "label": "Paste",
+      "type": "shortcut",
+      "value": "ctrl+v"
+    },
+    "enter": {
+      "label": "Enter",
+      "type": "shortcut",
+      "value": "enter"
+    },
+    "escape": {
+      "label": "Escape",
+      "type": "shortcut",
+      "value": "escape"
+    }
+  },
+  "builtin_modes": [
+    {
+      "name": "Cursor Mode (C)",
+      "key": "C",
+      "gestures": [
+        {
+          "name": "Open palm",
+          "action": "Move cursor"
+        },
+        {
+          "name": "Pinch index + thumb",
+          "action": "Left click"
+        },
+        {
+          "name": "Middle finger down",
+          "action": "Double left click"
+        },
+        {
+          "name": "Ring finger down",
+          "action": "Right click"
+        },
+        {
+          "name": "Thumb crosses index knuckle",
+          "action": "Scroll up"
+        },
+        {
+          "name": "Pinky down",
+          "action": "Scroll down"
+        },
+        {
+          "name": "Thumb + pinky tips together",
+          "action": "Task View (Win+Tab)"
+        },
+        {
+          "name": "Fist + rotate wrist",
+          "action": "Volume control"
+        },
+        {
+          "name": "All closed except index",
+          "action": "Voice dictation (Win+H)"
+        }
+      ]
+    },
+    {
+      "name": "Drawing Mode (X)",
+      "key": "X",
+      "gestures": [
+        {
+          "name": "Index + middle fingers up",
+          "action": "Draw"
+        },
+        {
+          "name": "Thumb-index pinch",
+          "action": "Adjust brush size"
+        },
+        {
+          "name": "Hand rotation",
+          "action": "Select color"
+        },
+        {
+          "name": "Ring + pinky down",
+          "action": "Eraser"
+        },
+        {
+          "name": "Fist for 1 second",
+          "action": "Clear canvas"
+        }
+      ]
+    }
+  ]
+}

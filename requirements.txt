@@ -1,0 +1,9 @@
+opencv-python
+mediapipe
+pywin32
+mouse
+keyboard
+numpy
+flask
+flask-socketio
+scikit-learn
