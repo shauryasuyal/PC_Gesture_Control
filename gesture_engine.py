@@ -1,3 +1,11 @@
+"""
+Gesture Engine — integrates the existing MotionControl modes (Cursor, Drawing)
+and layers custom ML-classified gestures on top.
+
+The original hardcoded gestures (click, scroll, dictation, task view, volume, etc.) are
+preserved as the PRIMARY system.  Custom gestures trained via the web UI are a SECONDARY
+system that runs alongside.
+"""
 
 import cv2
 import mediapipe as mp
