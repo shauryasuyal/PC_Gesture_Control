@@ -1,11 +1,3 @@
-"""
-Gesture Engine — integrates the existing MotionControl modes (Cursor, Drawing)
-and layers custom ML-classified gestures on top.
-
-The original hardcoded gestures (click, scroll, dictation, task view, volume, etc.) are
-preserved as the PRIMARY system.  Custom gestures trained via the web UI are a SECONDARY
-system that runs alongside.
-"""
 
 import cv2
 import mediapipe as mp
@@ -47,7 +39,7 @@ class GestureSmoother:
         threshold – fraction of window that must agree (default 0.60)
     """
 
-    def __init__(self, window: int = 8, threshold: float = 0.60):
+    def __init__(self, window: int = 5, threshold: float = 0.55):
         self._window    = window
         self._threshold = threshold
         self._buf: deque = deque(maxlen=window)  # stores (gesture_id | None, confidence)
@@ -365,13 +357,14 @@ def check_spider_gesture(landmarks):
     return curved_count >= 4 and spread_count >= 4
 
 
-def validate_finger_state(landmarks, shape_id):
+def validate_finger_state(landmarks, shape_id, finger_states=None):
     """
     Validate whether current hand landmarks match a given gesture shape.
     - For spider: uses curvature-based check (check_spider_gesture)
     - For all others: uses per-finger up/down matching + extended count
     - None in fingers[] = don't care (skip that finger)
     - Returns True if hand matches shape, False if not, True if shape unknown.
+    - finger_states: pre-computed dict from compute_finger_states (avoids re-computing)
     """
     shape = GESTURE_SHAPES.get(shape_id)
     if not shape:
@@ -382,7 +375,8 @@ def validate_finger_state(landmarks, shape_id):
         return check_spider_gesture(landmarks)
 
     # ── All other shapes: finger up/down matching ──
-    finger_states = compute_finger_states(landmarks)
+    if finger_states is None:
+        finger_states = compute_finger_states(landmarks)
     expected = shape["fingers"]
     keys = ["thumb", "index", "middle", "ring", "pinky"]
 
@@ -449,9 +443,10 @@ class GestureEngine:
         self.current_finger_states = {}  # live finger up/down state for tutorial
         
         # ── Temporal smoothing ──
-        # 8-frame window, 60 % agreement required before a gesture is reported.
-        # Keeps single-frame classifier noise from ever triggering an action.
-        self.smoother = GestureSmoother(window=8, threshold=0.60)
+        # 5-frame window, 55% agreement required before a gesture is reported.
+        # Reduced from 8/60% to cut recognition latency by ~37% while still
+        # suppressing single-frame classifier noise.
+        self.smoother = GestureSmoother(window=5, threshold=0.55)
 
         # ── App launch tracking (for app-type gestures) ──
         self.app_gesture_hold_start = {}  # gesture_id -> timestamp when gesture started being held
@@ -479,19 +474,31 @@ class GestureEngine:
         self.gestures_config = gestures_config
         self.custom_actions_map = {}
         self._gesture_name_cache = {}
-        # gesture_shape is purely cosmetic (icon only) — not a recognition filter.
-        self._configured_shapes = {}   # always empty — no shape gating
-        self._has_unconstrained = True  # always True — ML runs every frame
+        # _configured_shapes: gesture_id -> shape_id for gestures with a named shape.
+        # Used as a per-prediction gate: after ML fires, reject if hand doesn't
+        # actually match the registered shape right now.
+        self._configured_shapes = {}
+        # True if ANY gesture uses a freeform slot — ML must run unconditionally then.
+        self._has_unconstrained = False
+
         for g in gestures_config.get("gestures", []):
             gid = g["id"]
+            shape = g.get("gesture_shape", "")
             self.custom_actions_map[gid] = {
                 "name": g["name"],
                 "action_type": g.get("action_type", ACTION_TYPE_SHORTCUT),
                 "action_value": g.get("action_value", ""),
                 "action_label": g.get("action_label", g.get("name", "")),
-                "gesture_shape": g.get("gesture_shape"),
+                "gesture_shape": shape,
             }
             self._gesture_name_cache[gid] = g.get("name", gid)
+
+            # Freeform = no shape constraint (custom_XX slots or blank shape)
+            is_freeform = (not shape) or shape in FREEFORM_GESTURES
+            if is_freeform:
+                self._has_unconstrained = True
+            else:
+                self._configured_shapes[gid] = shape
 
     def reload_model(self):
         """Reload the ML classifier from disk."""
@@ -614,66 +621,63 @@ class GestureEngine:
         Send any keyboard shortcut robustly.
         Routes media keys and Windows-key combos through ctypes (which work
         reliably) and everything else through keyboard.send().
-        Normalises the value so spaces vs underscores don't matter.
-        """
-        v = value.lower().replace(" ", "").replace("-", "")
 
-        # Lock screen — only LockWorkStation() works (Win+L is kernel-intercepted)
-        if v in ("windows+l", "win+l"):
+        Normalisation pipeline:
+          1. lowercase + strip spaces → used for all dict lookups
+          2. separators (+, -, _) are kept for dict keys so matching is unambiguous
+        """
+        # Step 1: normalise for matching — lowercase, no spaces, no hyphens
+        # BUT keep "+" so "win+e" stays "win+e" and not "wine"
+        v = value.lower().strip().replace(" ", "").replace("-", "_")
+        # Also build a fully-stripped version (no + or _) for media key matching
+        v_clean = v.replace("+", "").replace("_", "")
+
+        # ── Lock screen ───────────────────────────────────────────────────────
+        if v_clean in ("windowsl", "winl"):
             ctypes.windll.user32.LockWorkStation()
             return
 
-        # Media / volume keys — must use VK codes, keyboard.send() can't do these
+        # ── Media / volume keys ───────────────────────────────────────────────
         media_vk = {
-            "volumeup":          self._VK_VOLUME_UP,
-            "volume_up":         self._VK_VOLUME_UP,
-            "volumedown":        self._VK_VOLUME_DOWN,
-            "volume_down":       self._VK_VOLUME_DOWN,
-            "volumemute":        self._VK_VOLUME_MUTE,
-            "volume_mute":       self._VK_VOLUME_MUTE,
-            "mute":              self._VK_VOLUME_MUTE,
-            "nexttrack":         self._VK_MEDIA_NEXT,
-            "next_track":        self._VK_MEDIA_NEXT,
-            "previoustrack":     self._VK_MEDIA_PREV,
-            "previous_track":    self._VK_MEDIA_PREV,
-            "prev_track":        self._VK_MEDIA_PREV,
-            "mediaplaypause":    self._VK_MEDIA_PLAY,
-            "media_play_pause":  self._VK_MEDIA_PLAY,
-            "mediastop":         self._VK_MEDIA_STOP,
+            "volumeup":       self._VK_VOLUME_UP,
+            "volumedown":     self._VK_VOLUME_DOWN,
+            "volumemute":     self._VK_VOLUME_MUTE,
+            "mute":           self._VK_VOLUME_MUTE,
+            "nexttrack":      self._VK_MEDIA_NEXT,
+            "previoustrack":  self._VK_MEDIA_PREV,
+            "prevtrack":      self._VK_MEDIA_PREV,
+            "mediaplaypause": self._VK_MEDIA_PLAY,
+            "playpause":      self._VK_MEDIA_PLAY,
+            "mediastop":      self._VK_MEDIA_STOP,
         }
-        # Strip all separators for matching
-        v_clean = v.replace("+", "").replace("_", "")
-        for key, vk in media_vk.items():
-            if v_clean == key.replace("_", ""):
-                self._vk_tap(vk)
-                return
-
-        # Windows-key combos — keyboard lib is unreliable for these
-        win_combos = {
-            "windows+tab":      (self._VK_LWIN, self._VK_TAB),
-            "win+tab":          (self._VK_LWIN, self._VK_TAB),
-            "windows+shift+s":  (self._VK_LWIN, self._VK_SHIFT, self._VK_S),
-            "win+shift+s":      (self._VK_LWIN, self._VK_SHIFT, self._VK_S),
-            "windows+m":        (self._VK_LWIN, self._VK_M),
-            "win+m":            (self._VK_LWIN, self._VK_M),
-            "windows+d":        (self._VK_LWIN, self._VK_D),
-            "win+d":            (self._VK_LWIN, self._VK_D),
-            "windows+e":        (self._VK_LWIN, self._VK_E),
-            "win+e":            (self._VK_LWIN, self._VK_E),
-            "windows+i":        (self._VK_LWIN, self._VK_I),
-            "win+i":            (self._VK_LWIN, self._VK_I),
-        }
-        if v in win_combos:
-            self._vk_tap(*win_combos[v])
+        if v_clean in media_vk:
+            self._vk_tap(media_vk[v_clean])
             return
 
-        # Everything else — standard keyboard.send()
+        # ── Windows-key combos ────────────────────────────────────────────────
+        # Keys use the normalised form (lowercase, no spaces/hyphens, + kept).
+        # Also accept "windows" as an alias for "win".
+        v_win = v.replace("windows+", "win+")   # normalise "windows+" → "win+"
+        win_combos = {
+            "win+e":       (self._VK_LWIN, self._VK_E),       # File Explorer
+            "win+d":       (self._VK_LWIN, self._VK_D),       # Show desktop
+            "win+m":       (self._VK_LWIN, self._VK_M),       # Minimise all
+            "win+i":       (self._VK_LWIN, self._VK_I),       # Settings
+            "win+tab":     (self._VK_LWIN, self._VK_TAB),     # Task view
+            "win+l":       (self._VK_LWIN, self._VK_TAB),     # (fallback, handled above)
+            "win+shift+s": (self._VK_LWIN, self._VK_SHIFT, self._VK_S),  # Snip
+        }
+        if v_win in win_combos:
+            self._vk_tap(*win_combos[v_win])
+            return
+
+        # ── Everything else — standard keyboard.send() ────────────────────────
         kb_module.send(value)
 
     def _execute_custom_action(self, gesture_id, confidence, hold_duration=0.0):
         """Execute the action mapped to a custom ML gesture."""
         now = time.time()
-        if now - self.action_cooldown_time < 1.5:
+        if now - self.action_cooldown_time < 1.0:
             return
         if confidence < 0.65:
             return
@@ -692,17 +696,27 @@ class GestureEngine:
                 self.action_cooldown_time = now
 
             elif action_type == ACTION_TYPE_APP:
-                # Always set cooldown so the gesture can't rapid-fire even
-                # if we decide not to launch (e.g. already running).
                 self.action_cooldown_time = now
                 last_launch = self.launched_apps.get(action_value, 0)
-                if (now - last_launch) >= 2.0 or hold_duration >= self.app_hold_threshold:
-                    # Quote paths that contain spaces so the shell handles them correctly
+                # Allow re-launch after 3 s (up from 2 s) to avoid double-firing,
+                # but always allow on first use (last_launch == 0).
+                if last_launch == 0 or (now - last_launch) >= 3.0 or hold_duration >= self.app_hold_threshold:
+                    # Special alias: "explorer" / "file explorer" → explorer.exe
+                    av_lower = action_value.lower().strip()
+                    if av_lower in ("explorer", "file explorer", "files", "fileexplorer"):
+                        action_value = "explorer.exe"
+                    # Quote paths with spaces
                     launch_cmd = action_value
                     if ' ' in action_value and not action_value.startswith('"'):
                         launch_cmd = f'"{action_value}"'
-                    subprocess.Popen(launch_cmd, shell=True)
-                    self.launched_apps[action_value] = now
+                    try:
+                        subprocess.Popen(launch_cmd, shell=True)
+                        self.launched_apps[action_value] = now
+                        print(f"[GestureEngine] Launched app: {launch_cmd}")
+                    except Exception as launch_err:
+                        print(f"[GestureEngine] Failed to launch '{launch_cmd}': {launch_err}")
+                else:
+                    print(f"[GestureEngine] App launch blocked by cooldown ({now - last_launch:.1f}s < 3s): {action_value}")
 
             elif action_type == ACTION_TYPE_COMMAND:
                 subprocess.Popen(action_value, shell=True)
@@ -913,30 +927,39 @@ class GestureEngine:
                                 image, hd, self.screen_w, self.screen_h,
                                 image_w, image_h)
 
-                        # ── Custom ML (every 5th frame) ───────────────────────
+                        # ── Custom ML (every 3rd frame) ───────────────────────
                         predict_frame_counter += 1
                         if (self.custom_gesture_enabled and
                                 self.predictor.loaded and
-                                predict_frame_counter % 5 == 0):
+                                predict_frame_counter % 3 == 0):
 
-                            has_any_match = self._has_unconstrained or not self._configured_shapes
-                            if not has_any_match:
+                            # ── Decide whether to even run ML this frame ──────
+                            # Skip the classifier if ALL gestures have shape constraints
+                            # AND no configured shape is currently visible.
+                            # This prevents false positives on completely wrong poses.
+                            should_predict = self._has_unconstrained  # freeform → always run
+                            if not should_predict:
                                 for shape_id in self._configured_shapes.values():
-                                    if validate_finger_state(landmarks, shape_id):
-                                        has_any_match = True
+                                    if validate_finger_state(landmarks, shape_id, self.current_finger_states):
+                                        should_predict = True
                                         break
 
                             # ── Raw prediction ───────────────────────────────
                             raw_gid, raw_conf = None, 0.0
-                            if has_any_match:
+                            if should_predict:
                                 raw_gid, raw_conf = self.predictor.predict(landmarks)
 
                             if raw_gid and raw_gid not in self.custom_actions_map:
                                 raw_gid, raw_conf = None, 0.0
 
-                            if raw_gid and raw_conf > 0.70:
-                                shape = self._configured_shapes.get(raw_gid)
-                                if shape and not validate_finger_state(landmarks, shape):
+                            # ── Per-gesture shape gate ────────────────────────
+                            # Reject the ML result if the hand doesn't currently
+                            # match the shape the gesture was registered with.
+                            # This is what stops "shaka" firing on an open palm.
+                            if raw_gid:
+                                required_shape = self._configured_shapes.get(raw_gid)
+                                if required_shape and not validate_finger_state(
+                                        landmarks, required_shape, self.current_finger_states):
                                     raw_gid, raw_conf = None, 0.0
 
                             # ── Temporal smoothing (sliding-window majority vote) ──
@@ -958,7 +981,7 @@ class GestureEngine:
                                     self.app_gesture_hold_start[gid] = now
                                     hold_duration = 0.0
 
-                                if custom_stable_count >= 4:
+                                if custom_stable_count >= 2:
                                     self._execute_custom_action(gid, conf, hold_duration)
 
                                 cv2.putText(image,
@@ -1053,8 +1076,8 @@ class GestureEngine:
 
     def generate_mjpeg(self):
         """Generator that yields MJPEG frames for video streaming."""
-        encode_params   = [cv2.IMWRITE_JPEG_QUALITY, 45]
-        target_interval = 1.0 / 12.0   # 12 FPS display — smooth enough, low CPU
+        encode_params   = [cv2.IMWRITE_JPEG_QUALITY, 50]
+        target_interval = 1.0 / 25.0   # 25 FPS display — much smoother, acceptable bandwidth
         last_frame_id   = -1
 
         while self.running:
@@ -1073,8 +1096,7 @@ class GestureEngine:
                 continue
             last_frame_id = fid
 
-            frame = frame_ref.copy()          # copy outside the lock
-            ret, buf = cv2.imencode('.jpg', frame, encode_params)
+            ret, buf = cv2.imencode('.jpg', frame_ref, encode_params)
             if not ret:
                 continue
 
