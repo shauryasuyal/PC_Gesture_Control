@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🖐️ FG Gesture Control
+# FG Gesture Control
 
 **Control your desktop with nothing but your hand.**
 
@@ -18,7 +18,7 @@ SCREENSHOTS - https://drive.google.com/drive/folders/1Psc7fawUpmTPLp4yR0qQ7gwrdI
 
 ---
 
-## ✨ What Is This?
+## What Is This?
 
 FG Gesture Control lets you operate your Windows desktop entirely through hand gestures picked up by a webcam. It ships with a set of **built-in gestures** (cursor movement, clicking, scrolling, drawing, and more) and a full **machine-learning pipeline** that lets you define, record, and train your own custom gestures — all through a slick browser-based dashboard.
 
@@ -26,7 +26,7 @@ No special hardware. No cloud. Everything runs locally, in real time.
 
 ---
 
-## 🎬 Demo
+## Demo
 
 > Open `http://localhost:5000` after launching — you'll see your camera feed, live gesture detection, action logs, and all controls in one place.
 
@@ -40,7 +40,7 @@ No special hardware. No cloud. Everything runs locally, in real time.
 
 ---
 
-## 🧠 How It Works
+## How It Works
 
 The system runs two gesture layers simultaneously:
 
@@ -66,7 +66,7 @@ You define these yourself. The app collects hand landmark samples, trains a **Ra
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 FG Gesture Control
@@ -97,7 +97,7 @@ FG Gesture Control
 
 ---
 
-## ⚡ Key Technical Details
+## Key Technical Details
 
 ### Feature Extraction
 Each hand frame produces 21 MediaPipe landmarks (x, y, z). These are:
@@ -116,7 +116,7 @@ After a custom gesture fires an action, a per-gesture cooldown prevents repeated
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -136,7 +136,7 @@ After a custom gesture fires an action, a per-gesture cooldown prevents repeated
 ```
 
 <details>
-<summary>📋 Core dependencies</summary>
+<summary> Core dependencies</summary>
 
 ```
 flask
@@ -162,7 +162,7 @@ Then open your browser to **http://localhost:5000**
 
 ---
 
-## 🎯 Creating Your First Custom Gesture
+## Creating Your First Custom Gesture
 
 1. **Go to the Gestures page** in the dashboard
 2. Click **"Add Custom Gesture"**
@@ -175,7 +175,7 @@ Then open your browser to **http://localhost:5000**
 
 ---
 
-## 🎨 Gesture Shapes Available
+## Gesture Shapes Available
 
 The system ships with a library of named hand shapes you can use as a starting point, each with validation logic to guard against false positives:
 
@@ -224,7 +224,7 @@ The Flask server exposes a simple REST API if you want to integrate or script ag
 
 ---
 
-## 🗂️ Project Structure Details
+## Project Structure Details
 
 ### `gesture_engine.py`
 The heart of the system. Runs a background thread that:
@@ -247,7 +247,7 @@ The original standalone gesture controller, now imported as a library. Contains 
 
 ---
 
-## 🛠️ Configuration
+## Configuration
 
 Gesture metadata is stored in `data/gestures.json`. You can edit this manually, but the dashboard handles it automatically.
 
@@ -255,7 +255,7 @@ The ML model lives in `models/` and is hot-reloaded after training — no restar
 
 ---
 
-## 📊 Training Tips
+## Training Tips
 
 - **Minimum samples:** ~100 per gesture (more = better)
 - **Variety helps:** Record at slightly different distances and angles
@@ -264,7 +264,7 @@ The ML model lives in `models/` and is hot-reloaded after training — no restar
 - **One gesture only?** The trainer automatically injects synthetic background noise data to prevent the model from predicting that gesture for literally everything
 
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
